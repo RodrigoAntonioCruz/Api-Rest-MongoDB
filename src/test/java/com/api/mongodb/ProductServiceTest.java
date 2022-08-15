@@ -5,9 +5,11 @@ import com.api.mongodb.models.dto.ProductDTO;
 import com.api.mongodb.models.filters.ProductFilter;
 import com.api.mongodb.repositories.ProductRepository;
 import com.api.mongodb.services.ProductService;
+import com.api.mongodb.util.Constants;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -23,7 +25,9 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ProductServiceTest {
@@ -67,11 +71,7 @@ public class ProductServiceTest {
 
         DEFAULT_PAGEABLE = PageRequest.of(0, 10);
 
-        when(productRepository.findAll(DEFAULT_PAGEABLE)).thenReturn(new PageImpl<>(List.of(PRODUCT)));
-
         when(productRepository.findById(PRODUCT.getId())).thenReturn(Optional.ofNullable(PRODUCT));
-
-        when(mapper.map(PRODUCT, ProductDTO.class)).thenReturn(PRODUCT_DTO);
 
         when(productRepository.save(PRODUCT)).thenReturn(PRODUCT);
 
@@ -79,6 +79,8 @@ public class ProductServiceTest {
 
     @Test
     public void whenFindAllReturnProductPage() {
+
+        when(productRepository.findAll(DEFAULT_PAGEABLE)).thenReturn(new PageImpl<>(List.of(PRODUCT)));
 
         var products = productService.findAll(DEFAULT_PAGEABLE);
 
@@ -89,6 +91,7 @@ public class ProductServiceTest {
         assertEquals(PRODUCT_DTO, products.getContent().get(0));
 
     }
+
 
     @Test
     public void whenSearchByFilter_And_FindMinAndMaxPrice_ReturnProductPage() {
@@ -151,15 +154,16 @@ public class ProductServiceTest {
     @Test
     public void whenFindByIdReturnProduct() {
 
-       var product = productService.findById(PRODUCT_DTO.getId());
+        var product = productService.findById(PRODUCT_DTO.getId());
 
         verify(productRepository, times(1)).findById(PRODUCT_DTO.getId());
 
-       assertEquals(product.getId(), "62eff2aa4e6fc45b97ab3d84");
-       assertEquals(product.getName(), "Parafuso 1/5 mm");
-       assertEquals(product.getDescription(), "Parafuso de 1/5 mm soberbo");
-       assertEquals(Optional.ofNullable(product.getPrice()), Optional.of(1.2));
+        assertEquals(product.getId(), "62eff2aa4e6fc45b97ab3d84");
+        assertEquals(product.getName(), "Parafuso 1/5 mm");
+        assertEquals(product.getDescription(), "Parafuso de 1/5 mm soberbo");
+        assertEquals(Optional.ofNullable(product.getPrice()), Optional.of(1.2));
     }
+
 
     @Test
     public void whenCreateReturnProduct() {
@@ -170,12 +174,14 @@ public class ProductServiceTest {
 
         verify(productRepository, times(1)).save(PRODUCT);
 
+
         assertEquals(product.getId(), "62eff2aa4e6fc45b97ab3d84");
         assertEquals(product.getName(), "Parafuso 1/5 mm");
         assertEquals(product.getDescription(), "Parafuso de 1/5 mm soberbo");
         assertEquals(Optional.ofNullable(product.getPrice()), Optional.of(1.2));
-
     }
+
+
 
     @Test
     public void whenUpdateReturnProduct() {
@@ -196,6 +202,62 @@ public class ProductServiceTest {
         productService.delete(PRODUCT_DTO.getId());
 
         verify(productRepository, times(1)).deleteById(PRODUCT_DTO.getId());
+    }
+
+
+    @Test
+    public void whenCreateadExpectedException(){
+
+        when(mapper.map(PRODUCT_DTO, Product.class)).thenReturn(PRODUCT);
+
+        when(productRepository.save(PRODUCT)).thenThrow(new RuntimeException(Constants.MESSAGE_INVALID_REQUEST));
+
+        var exception = Assertions.assertThrows(RuntimeException.class,() -> {
+            productService.create(PRODUCT_DTO);
+        });
+
+        assertEquals(Constants.MESSAGE_INVALID_REQUEST, exception.getMessage());
+
+        verify(productRepository, times(1)).save(PRODUCT);
+    }
+
+    @Test
+    public void whenUpdateExpectedException() {
+
+        when(productService.update(PRODUCT_DTO.getId(), PRODUCT_DTO)).thenThrow(new RuntimeException(Constants.ERROR_NOT_FOUND));
+
+        var exception = Assertions.assertThrows(RuntimeException.class,() -> {
+            productService.update(PRODUCT_DTO.getId(),PRODUCT_DTO);
+        });
+
+        assertEquals(Constants.ERROR_NOT_FOUND, exception.getMessage());
+
+        verify(productRepository, times(2)).save(PRODUCT);
+    }
+
+    @Test
+    public void whenFindByIdReturnException() {
+        when(productService.findById(PRODUCT_DTO.getId())).thenThrow(new RuntimeException(Constants.ERROR_NOT_FOUND));
+
+        var exception = Assertions.assertThrows(RuntimeException.class,() -> {
+            productService.findById(PRODUCT_DTO.getId());
+        });
+
+        assertEquals(Constants.ERROR_NOT_FOUND, exception.getMessage());
+        verify(productRepository, times(2)).findById(PRODUCT_DTO.getId());
+    }
+
+    @Test
+    public void whenFindAllReturnEmptyPage() {
+
+        when(productRepository.findAll(DEFAULT_PAGEABLE)).thenReturn(new PageImpl<>(List.of()));
+
+        var products = productService.findAll(DEFAULT_PAGEABLE);
+
+         verify(productRepository, times(1)).findAll(DEFAULT_PAGEABLE);
+
+        assertEquals(0, products.getTotalElements());
+
     }
 
 }
